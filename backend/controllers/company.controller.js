@@ -22,12 +22,25 @@ const createCompany = async (req, res) => {
   });
   if (authError) return res.status(400).json({ error: authError.message });
 
-  const { data, error } = await updateCompany(authData.user.id, {
-    description, website, industry, location, contact_email,
-  });
+  const { data, error } = await supabaseAdmin
+    .from("companies")
+    .upsert({
+      id: authData.user.id,
+      description,
+      website,
+      industry,
+      location,
+      contact_email,
+    })
+    .select("id, description, website, industry, location, contact_email")
+    .single();
+
   if (error) return res.status(500).json({ error: error.message });
 
-  res.status(201).json({ message: "Company created successfully", company: data });
+  res.status(201).json({
+    message: "Company created successfully",
+    company: { id: authData.user.id, name, email, ...data },
+  });
 };
 
 const getCompany = async (req, res) => {

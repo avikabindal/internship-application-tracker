@@ -2,6 +2,7 @@ const { supabaseAdmin, supabaseAuth } = require("../database/supabase");
 const { getProfileById } = require("../models/profile.model");
 
 const register = async (req, res) => {
+  console.log("Register hit, body:", req.body);
   const { name, email, password, role } = req.body;
 
   if (!name || !email || !password || !role) {
@@ -11,14 +12,29 @@ const register = async (req, res) => {
     return res.status(400).json({ error: "role must be tpo, student, or company" });
   }
 
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { name, role },
+  console.log("Calling Supabase Admin REST API directly");
+  const supaRes = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name, role },
+    }),
   });
+  const result = await supaRes.json();
+  console.log("Result:", { status: supaRes.status, result });
 
-  if (error) return res.status(400).json({ error: error.message });
+  if (!supaRes.ok) {
+    return res.status(400).json({ error: result.msg || result.error_code || "Registration failed" });
+  }
+
+  const data = { user: result };
 
   if (role === "student") {
     await supabaseAdmin.from("students").insert({ id: data.user.id });
@@ -35,11 +51,9 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-
   if (!email || !password) {
     return res.status(400).json({ error: "email and password are required" });
   }
-
   const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
   if (error) return res.status(401).json({ error: "Invalid email or password" });
 
